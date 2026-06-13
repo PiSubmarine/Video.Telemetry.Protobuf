@@ -1,12 +1,12 @@
-#include "PiSubmarine/Depth/Telemetry/Protobuf/Serializer.h"
+#include "PiSubmarine/Video/Telemetry/Protobuf/Serializer.h"
 
 #include <string>
 
-#include "Depth.pb.h"
-#include "PiSubmarine/Depth/Telemetry/Protobuf/ErrorCode.h"
+#include "Video.pb.h"
+#include "PiSubmarine/Video/Telemetry/Protobuf/ErrorCode.h"
 #include "PiSubmarine/Error/Api/MakeError.h"
 
-namespace PiSubmarine::Depth::Telemetry::Protobuf
+namespace PiSubmarine::Video::Telemetry::Protobuf
 {
     Serializer::Serializer(const Api::IProvider& provider)
         : m_Provider(provider)
@@ -15,20 +15,20 @@ namespace PiSubmarine::Depth::Telemetry::Protobuf
 
     Error::Api::Result<std::vector<std::byte>> Serializer::GetRaw() const
     {
-        const auto stateResult = m_Provider.GetState();
-        if (!stateResult.has_value())
+        const auto statusResult = m_Provider.GetStatus();
+        if (!statusResult.has_value())
         {
-            return std::unexpected(stateResult.error());
+            return std::unexpected(statusResult.error());
         }
 
-        ::pisubmarine::depth::telemetry::protobuf::State protoState;
-        if (stateResult->Depth.has_value())
-        {
-            protoState.set_depth_meters(stateResult->Depth->Value);
-        }
+        ::pisubmarine::video::telemetry::protobuf::Status protoStatus;
+        protoStatus.set_is_streaming_enabled(statusResult->IsStreamingEnabled);
+        protoStatus.set_subscribers(statusResult->Subscribers);
+        protoStatus.set_operational(static_cast<int32_t>(statusResult->Operational));
+        protoStatus.set_active_faults(static_cast<uint32_t>(statusResult->ActiveFaults));
 
         std::string serialized;
-        if (!protoState.SerializeToString(&serialized))
+        if (!protoStatus.SerializeToString(&serialized))
         {
             return std::unexpected(Error::Api::MakeError(
                 Error::Api::ErrorCondition::DeviceError,

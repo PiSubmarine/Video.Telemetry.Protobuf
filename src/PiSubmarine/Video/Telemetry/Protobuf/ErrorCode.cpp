@@ -1,9 +1,9 @@
-#include "PiSubmarine/Depth/Telemetry/Protobuf/ErrorCode.h"
+#include "PiSubmarine/Video/Telemetry/Protobuf/ErrorCode.h"
 
 #include <array>
 #include <string_view>
 
-namespace PiSubmarine::Depth::Telemetry::Protobuf
+namespace PiSubmarine::Video::Telemetry::Protobuf
 {
     namespace
     {
@@ -12,7 +12,7 @@ namespace PiSubmarine::Depth::Telemetry::Protobuf
         public:
             [[nodiscard]] const char* name() const noexcept override
             {
-                return "PiSubmarine.Depth.Telemetry.Protobuf";
+                return "PiSubmarine.Video.Telemetry.Protobuf";
             }
 
             [[nodiscard]] std::string message(const int condition) const override
@@ -26,7 +26,7 @@ namespace PiSubmarine::Depth::Telemetry::Protobuf
                 const auto index = static_cast<std::size_t>(condition);
                 if (index >= Messages.size())
                 {
-                    return "unknown depth telemetry protobuf error";
+                    return "unknown video telemetry protobuf error";
                 }
 
                 return std::string(Messages[index]);

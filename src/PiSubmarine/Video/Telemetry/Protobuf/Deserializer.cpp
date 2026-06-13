@@ -1,18 +1,35 @@
-#include "PiSubmarine/Depth/Telemetry/Protobuf/Deserializer.h"
+#include "PiSubmarine/Video/Telemetry/Protobuf/Deserializer.h"
 
-#include "Depth.pb.h"
-#include "PiSubmarine/Depth/Telemetry/Protobuf/ErrorCode.h"
+#include <optional>
+
+#include "Video.pb.h"
+#include "PiSubmarine/Video/Telemetry/Protobuf/ErrorCode.h"
 #include "PiSubmarine/Error/Api/MakeError.h"
 
-namespace PiSubmarine::Depth::Telemetry::Protobuf
+namespace PiSubmarine::Video::Telemetry::Protobuf
 {
     namespace
     {
-        [[nodiscard]] Error::Api::Error MakeDepthTelemetryError(
+        [[nodiscard]] Error::Api::Error MakeVideoTelemetryError(
             const Error::Api::ErrorCondition condition,
             const ErrorCode code)
         {
             return Error::Api::MakeError(condition, make_error_code(code));
+        }
+
+        [[nodiscard]] std::optional<Api::OperationalState> ParseOperationalState(const int32_t value)
+        {
+            switch (value)
+            {
+                case 0:
+                    return Api::OperationalState::Stopped;
+                case 1:
+                    return Api::OperationalState::Streaming;
+                case 2:
+                    return Api::OperationalState::Faulted;
+                default:
+                    return std::nullopt;
+            }
         }
     }
 
@@ -21,7 +38,7 @@ namespace PiSubmarine::Depth::Telemetry::Protobuf
     {
     }
 
-    Error::Api::Result<Api::State> Deserializer::GetState() const
+    Error::Api::Result<Api::Status> Deserializer::GetStatus() const
     {
         const auto rawResult = m_RawSource.GetRaw();
         if (!rawResult.has_value())
@@ -29,20 +46,28 @@ namespace PiSubmarine::Depth::Telemetry::Protobuf
             return std::unexpected(rawResult.error());
         }
 
-        ::pisubmarine::depth::telemetry::protobuf::State protoState;
-        if (!protoState.ParseFromArray(reinterpret_cast<const char*>(rawResult->data()), static_cast<int>(rawResult->size())))
+        ::pisubmarine::video::telemetry::protobuf::Status protoStatus;
+        if (!protoStatus.ParseFromArray(reinterpret_cast<const char*>(rawResult->data()), static_cast<int>(rawResult->size())))
         {
-            return std::unexpected(MakeDepthTelemetryError(
+            return std::unexpected(MakeVideoTelemetryError(
                 Error::Api::ErrorCondition::ContractError,
                 ErrorCode::DeserializationFailed));
         }
 
-        Api::State state{};
-        if (protoState.has_depth_meters())
+        const auto operational = ParseOperationalState(protoStatus.operational());
+        if (!operational.has_value())
         {
-            state.Depth = Meters{protoState.depth_meters()};
+            return std::unexpected(MakeVideoTelemetryError(
+                Error::Api::ErrorCondition::ContractError,
+                ErrorCode::InvalidPayload));
         }
 
-        return state;
+        Api::Status status{
+            .IsStreamingEnabled = protoStatus.is_streaming_enabled(),
+            .Subscribers = protoStatus.subscribers(),
+            .Operational = *operational,
+            .ActiveFaults = static_cast<Api::Faults>(protoStatus.active_faults())};
+
+        return status;
     }
 }
